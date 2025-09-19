@@ -136,6 +136,35 @@ function clearApiKey() {
   apiKey = null;
 }
 
+// Currency selection persistence functions
+function saveCurrencySelection() {
+  try {
+    localStorage.setItem('selected-currencies', JSON.stringify({
+      from: fromCurrency,
+      to: toCurrency,
+      savedAt: Date.now()
+    }));
+  } catch (e) {
+    console.warn('Failed to save currency selection:', e);
+  }
+}
+
+function loadCurrencySelection() {
+  try {
+    const saved = localStorage.getItem('selected-currencies');
+    if (saved) {
+      const data = JSON.parse(saved);
+      // Use saved currencies if they exist and were saved within last 30 days
+      if (data.from && data.to && (Date.now() - data.savedAt) < 30 * 24 * 60 * 60 * 1000) {
+        return { from: data.from, to: data.to };
+      }
+    }
+  } catch (e) {
+    console.warn('Failed to load currency selection:', e);
+  }
+  return null;
+}
+
 function buildApiHeaders() {
   const provider = getProviderConfig();
   const headers = {
@@ -751,6 +780,7 @@ function handleFromCurrencyChange() {
   fromCurrency = fromCurrencySelect.value;
   const newLocale = getLocaleForCurrency(fromCurrency);
   fromMask.setCurrency(fromCurrency, newLocale);
+  saveCurrencySelection();
   debouncedRefreshRate('from');
 }
 
@@ -758,6 +788,7 @@ function handleToCurrencyChange() {
   toCurrency = toCurrencySelect.value;
   const newLocale = getLocaleForCurrency(toCurrency);
   toMask.setCurrency(toCurrency, newLocale);
+  saveCurrencySelection();
   debouncedRefreshRate('to');
 }
 
@@ -774,6 +805,9 @@ function handleSwap() {
   // Update masks
   fromMask.setCurrency(fromCurrency, getLocaleForCurrency(fromCurrency));
   toMask.setCurrency(toCurrency, getLocaleForCurrency(toCurrency));
+  
+  // Save the new currency selection
+  saveCurrencySelection();
   
   // Refresh rate and convert
   refreshRateAndConvert('from');
@@ -949,6 +983,14 @@ async function init() {
   
   // Load API key for current provider immediately
   apiKey = loadApiKey();
+  
+  // Load saved currency selection
+  const savedCurrencies = loadCurrencySelection();
+  if (savedCurrencies) {
+    fromCurrency = savedCurrencies.from;
+    toCurrency = savedCurrencies.to;
+    console.log('Loaded saved currencies:', fromCurrency, 'to', toCurrency);
+  }
   
   // Get DOM elements
   fromAmountInput = document.getElementById('from-amount');
