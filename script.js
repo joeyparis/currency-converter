@@ -518,6 +518,24 @@ function updateProviderUI() {
     apiKeySection.classList.add('d-none');
     apiKey = null;
   }
+  
+  // Update footer attribution
+  updateProviderAttribution();
+}
+
+function updateProviderAttribution() {
+  const provider = getProviderConfig();
+  const attributionEl = document.getElementById('provider-attribution');
+  
+  if (attributionEl) {
+    if (currentProvider === 'frankfurter') {
+      attributionEl.innerHTML = `Exchange rates provided by <a href="https://www.frankfurter.app/" target="_blank" rel="noopener noreferrer" class="text-decoration-none">frankfurter.app</a>`;
+    } else if (currentProvider === 'unirateapi') {
+      attributionEl.innerHTML = `Exchange rates provided by <a href="https://unirateapi.com/" target="_blank" rel="noopener noreferrer" class="text-decoration-none">UniRateAPI</a>`;
+    } else {
+      attributionEl.innerHTML = `Exchange rates provided by ${provider.name}`;
+    }
+  }
 }
 
 function handleProviderChange() {
@@ -980,6 +998,8 @@ async function init() {
     });
   } else {
     console.error('providerSelect element not found during initialization');
+    // Still update attribution even if modal elements aren't found
+    updateProviderAttribution();
   }
   
   // Event listeners
