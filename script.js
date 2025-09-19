@@ -638,8 +638,10 @@ function renderRateMeta(rateInfo) {
 
 // Main conversion logic
 async function loadAndPopulateCurrencies() {
+  console.log('🔄 Loading currencies with provider:', currentProvider, 'API key:', !!apiKey);
   try {
     const currencies = await loadCurrencies();
+    console.log('✅ Currencies loaded:', Object.keys(currencies).length, 'currencies');
     populateCurrencySelects(currencies);
     
     // Only try to fetch rates if we have valid currencies
@@ -965,9 +967,20 @@ async function init() {
     getLocaleForCurrency(toCurrency)
   );
   
-  // Set up provider UI
-  providerSelect.value = currentProvider;
-  updateProviderUI();
+  // Set up provider UI - ensure proper initialization
+  if (providerSelect) {
+    providerSelect.value = currentProvider;
+    updateProviderUI();
+    
+    // Debug logging
+    console.log('Provider initialization:', {
+      currentProvider,
+      selectValue: providerSelect.value,
+      providerConfig: getProviderConfig()
+    });
+  } else {
+    console.error('providerSelect element not found during initialization');
+  }
   
   // Event listeners
   fromAmountInput.addEventListener('masked-change', handleFromAmountChange);
