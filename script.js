@@ -421,7 +421,7 @@ async function getRate(from, to) {
 let fromAmountInput, toAmountInput, fromCurrencySelect, toCurrencySelect;
 let swapButton, rateLine, updatedLine, errorArea, errorMessage, retryButton;
 let offlineBanner, staleBanner, installButton, refreshButton;
-let providerSelect, apiKeySection, apiKeyInput, toggleApiKeyButton, saveApiKeyButton, providerInfo;
+let providerSelect, apiKeySection, apiKeyInput, toggleApiKeyButton, saveSettingsButton, forceRefreshButton;
 let fromMask, toMask;
 
 // UI Update Functions
@@ -505,7 +505,6 @@ function updateProviderUI() {
   
   if (provider.requiresApiKey) {
     apiKeySection.classList.remove('d-none');
-    providerInfo.classList.add('d-none');
     
     // Load existing API key
     const savedKey = loadApiKey();
@@ -517,8 +516,6 @@ function updateProviderUI() {
     }
   } else {
     apiKeySection.classList.add('d-none');
-    providerInfo.classList.remove('d-none');
-    providerInfo.textContent = `Using ${provider.name} - ${provider.description}`;
     apiKey = null;
   }
 }
@@ -549,44 +546,59 @@ function handleProviderChange() {
 function handleApiKeyToggle() {
   if (apiKeyInput.type === 'password') {
     apiKeyInput.type = 'text';
-    toggleApiKeyButton.textContent = '🙈';
+    toggleApiKeyButton.innerHTML = '<i class="fas fa-eye-slash"></i>';
   } else {
     apiKeyInput.type = 'password';
-    toggleApiKeyButton.textContent = '👁️';
+    toggleApiKeyButton.innerHTML = '<i class="fas fa-eye"></i>';
   }
 }
 
-function handleApiKeySave() {
-  const keyValue = apiKeyInput.value.trim();
+function handleSaveSettings() {
+  const provider = getProviderConfig();
+  let success = true;
   
-  if (!keyValue || keyValue === '••••••••••••••••') {
-    showError('Please enter a valid API key');
-    return;
+  // If provider requires API key, validate and save it
+  if (provider.requiresApiKey) {
+    const keyValue = apiKeyInput.value.trim();
+    
+    if (!keyValue || keyValue === '••••••••••••••••') {
+      showError('Please enter a valid API key');
+      return;
+    }
+    
+    if (saveApiKey(keyValue)) {
+      apiKeyInput.value = '••••••••••••••••'; // Mask the saved key
+      apiKeyInput.type = 'password';
+      toggleApiKeyButton.innerHTML = '<i class="fas fa-eye"></i>';
+    } else {
+      showError('Failed to save API key');
+      success = false;
+    }
   }
   
-  if (saveApiKey(keyValue)) {
-    apiKeyInput.value = '••••••••••••••••'; // Mask the saved key
-    apiKeyInput.type = 'password';
-    toggleApiKeyButton.textContent = '👁️';
-    
+  if (success) {
     hideError();
     
     // Show success message briefly
-    const originalText = saveApiKeyButton.textContent;
-    saveApiKeyButton.textContent = 'Saved!';
-    saveApiKeyButton.classList.remove('btn-success');
-    saveApiKeyButton.classList.add('btn-outline-success');
+    const originalText = saveSettingsButton.textContent;
+    saveSettingsButton.textContent = 'Saved!';
+    saveSettingsButton.classList.remove('btn-primary');
+    saveSettingsButton.classList.add('btn-success');
     
     setTimeout(() => {
-      saveApiKeyButton.textContent = originalText;
-      saveApiKeyButton.classList.remove('btn-outline-success');
-      saveApiKeyButton.classList.add('btn-success');
-    }, 2000);
+      saveSettingsButton.textContent = originalText;
+      saveSettingsButton.classList.remove('btn-success');
+      saveSettingsButton.classList.add('btn-primary');
+    }, 1500);
     
-    // Reload currencies with new API key
+    // Close the modal
+    const settingsModal = bootstrap.Modal.getInstance(document.getElementById('settingsModal'));
+    if (settingsModal) {
+      settingsModal.hide();
+    }
+    
+    // Reload currencies with new settings
     loadAndPopulateCurrencies();
-  } else {
-    showError('Failed to save API key');
   }
 }
 
@@ -934,10 +946,10 @@ async function init() {
   // Provider UI elements
   providerSelect = document.getElementById('provider-select');
   apiKeySection = document.getElementById('api-key-section');
-  apiKeyInput = document.getElementById('api-key-input');
+  apiKeyInput = document.getElementById('api-key');
   toggleApiKeyButton = document.getElementById('toggle-api-key');
-  saveApiKeyButton = document.getElementById('save-api-key');
-  providerInfo = document.getElementById('provider-info');
+  saveSettingsButton = document.getElementById('save-settings');
+  forceRefreshButton = document.getElementById('force-refresh');
   
   // Create currency inputs
   fromMask = createCurrencyInput(
@@ -966,12 +978,13 @@ async function init() {
   // Provider UI event listeners
   providerSelect.addEventListener('change', handleProviderChange);
   toggleApiKeyButton.addEventListener('click', handleApiKeyToggle);
-  saveApiKeyButton.addEventListener('click', handleApiKeySave);
+  saveSettingsButton.addEventListener('click', handleSaveSettings);
   apiKeyInput.addEventListener('keypress', (e) => {
     if (e.key === 'Enter') {
-      handleApiKeySave();
+      handleSaveSettings();
     }
   });
+  forceRefreshButton.addEventListener('click', handleForceRefresh);
   
   // PWA events
   window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
