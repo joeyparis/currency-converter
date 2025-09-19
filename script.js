@@ -266,7 +266,7 @@ function parseLocaleNumber(str, locale) {
   return parseFloat(cleanStr) || 0;
 }
 
-// Format number according to locale
+// Format number according to locale with thousands separators
 function formatLocaleNumber(num, locale, maxDecimals = 2) {
   if (num === 0 || num === null || num === undefined) return '';
   
@@ -274,7 +274,7 @@ function formatLocaleNumber(num, locale, maxDecimals = 2) {
     return new Intl.NumberFormat(locale, {
       minimumFractionDigits: 0,
       maximumFractionDigits: maxDecimals,
-      useGrouping: false // Don't use thousands separators in input fields
+      useGrouping: true // Use thousands separators for better readability
     }).format(num);
   } catch (e) {
     return num.toString();
@@ -292,9 +292,9 @@ function createCurrencyInput(inputEl, initialCurrency, initialLocale) {
   inputEl.type = 'text';
   inputEl.inputMode = 'decimal';
   
-  // Set locale-specific placeholder
-  const decimalSep = getDecimalSeparator(locale);
-  inputEl.placeholder = `0${decimalSep}00`;
+  // Set locale-specific placeholder with thousands separator example
+  const exampleNumber = 1234.56;
+  inputEl.placeholder = formatLocaleNumber(exampleNumber, locale);
 
   function handleInput() {
     if (isUpdating) return;
@@ -305,6 +305,27 @@ function createCurrencyInput(inputEl, initialCurrency, initialLocale) {
     // Only update if we have a valid number
     if (!isNaN(numValue)) {
       lastValidValue = inputValue;
+      
+      // Auto-format with thousands separators while typing (with debounce)
+      clearTimeout(inputEl.formatTimer);
+      inputEl.formatTimer = setTimeout(() => {
+        if (!isUpdating && document.activeElement === inputEl) {
+          const cursorPos = inputEl.selectionStart;
+          const oldLength = inputEl.value.length;
+          const formatted = formatLocaleNumber(numValue, locale);
+          
+          if (formatted !== inputEl.value) {
+            isUpdating = true;
+            inputEl.value = formatted;
+            // Adjust cursor position after formatting
+            const newLength = inputEl.value.length;
+            const newPos = cursorPos + (newLength - oldLength);
+            inputEl.setSelectionRange(newPos, newPos);
+            isUpdating = false;
+          }
+        }
+      }, 500); // Format after 500ms of no typing
+      
       inputEl.dispatchEvent(new CustomEvent('masked-change', {
         bubbles: true,
         detail: { number: numValue }
@@ -355,6 +376,12 @@ function createCurrencyInput(inputEl, initialCurrency, initialLocale) {
       return;
     }
     
+    // Allow thousands separator
+    const thousandsSep = getThousandsSeparator(locale);
+    if (e.key === thousandsSep) {
+      return;
+    }
+    
     // Block invalid characters
     e.preventDefault();
   });
@@ -365,8 +392,8 @@ function createCurrencyInput(inputEl, initialCurrency, initialLocale) {
       if (nextLocale !== locale) {
         locale = nextLocale;
         // Update placeholder for new locale
-        const decimalSep = getDecimalSeparator(locale);
-        inputEl.placeholder = `0${decimalSep}00`;
+        const exampleNumber = 1234.56;
+        inputEl.placeholder = formatLocaleNumber(exampleNumber, locale);
         
         // Reformat current value for new locale
         const currentNum = this.getNumber();
