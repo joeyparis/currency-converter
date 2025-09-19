@@ -1,17 +1,42 @@
-# Currency Converter
+# Currency Converter PWA
 
-A mobile-friendly, offline-capable Progressive Web App (PWA) for currency conversion with locale-aware formatting. Built with plain HTML, CSS, and JavaScript.
+A modern, offline-capable Progressive Web App (PWA) for currency conversion with international formatting support and persistent state.
+
+## 🌐 **[Live Demo - Try it now!](https://joeyparis.github.io/currency-converter/)**
 
 ## ✨ Features
 
-- **Multiple Exchange Rate Providers**: Choose between Frankfurter (free, 31 currencies) or UniRateAPI (API key required, 170+ currencies)
-- **Locale-Aware Formatting**: Displays currencies using each country's formatting standards (e.g., `99.999,00` for Colombian pesos, `99,999.00` for USD)
-- **Offline Support**: Works offline using cached exchange rates and service worker app shell caching
-- **PWA Installable**: Can be installed on mobile devices and desktops
-- **Mobile-First Design**: Optimized for mobile devices with touch-friendly interface
-- **Bidirectional Conversion**: Type in either field to convert in both directions
-- **Smart Input Masking**: Automatically formats currency input while typing
-- **Secure API Key Storage**: API keys stored locally in browser, never transmitted to our servers
+### 💱 Multi-Provider Exchange Rates
+- **Frankfurter API** - Free service with 31 major currencies
+- **UniRateAPI** - Premium service with 170+ currencies (API key required)
+- **Colombian Peso Support** - Now available through UniRateAPI!
+- Automatic fallback to cached rates when offline
+
+### 🌍 International Formatting
+- **Thousands separators** auto-formatting (1,234.56 vs 1.234,56)
+- **Locale-aware decimal separators** (comma vs dot)
+- **Smart input validation** with locale-specific formatting
+- **Real-time formatting** as you type with debounced updates
+
+### 💾 Persistent State
+- **Currency selection memory** - remembers your last used currency pair (30 days)
+- **Amount persistence** - saves entered amounts across sessions (24 hours)
+- **Provider settings** - remembers your preferred exchange rate provider
+- **Graceful fallbacks** when data expires or is unavailable
+
+### 📱 Progressive Web App
+- **Offline functionality** with service worker caching
+- **Installable** on mobile devices and desktop
+- **Responsive design** optimized for all screen sizes
+- **Auto-updates** with background service worker updates
+- **Fast loading** with aggressive caching strategy
+
+### 🎨 Modern UI/UX
+- **Clean, minimal design** with floating settings gear button
+- **Mobile-first approach** with compact layout
+- **Dynamic provider attribution** in footer
+- **Accessibility features** with proper ARIA labels
+- **Bootstrap 5** styling with Font Awesome icons
 
 ## 🛠 Tech Stack
 
@@ -58,21 +83,29 @@ A mobile-friendly, offline-capable Progressive Web App (PWA) for currency conver
 
 ## 🌐 Deployment
 
-### GitHub Pages
+### GitHub Pages (Automated)
 
-1. **Push to GitHub**:
+The project includes GitHub Actions for automatic deployment:
+
+1. **Push to GitHub** (deployment happens automatically):
    ```bash
    git add .
-   git commit -m "Initial currency converter PWA"
+   git commit -m "Update currency converter"
    git push origin main
    ```
 
-2. **Enable GitHub Pages**:
+2. **Enable GitHub Pages** (one-time setup):
    - Go to **Settings** → **Pages**
-   - Choose **Deploy from a branch** → **main** → **/ (root)**
-   - Save
+   - Choose **GitHub Actions** as source
+   - The workflow will deploy automatically on every push to main
 
 3. **Access your app**: `https://yourusername.github.io/currency-converter/`
+
+### GitHub Actions Workflow
+- **Triggers**: Push to main branch or manual dispatch
+- **Build**: No build process needed (static files)
+- **Deploy**: Automatic deployment to GitHub Pages
+- **Status**: Check the "Actions" tab for deployment status
 
 ### Other Hosting
 
