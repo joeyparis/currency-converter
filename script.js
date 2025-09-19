@@ -227,23 +227,104 @@ function buildApiUrl(endpoint, params = {}) {
   return url + queryString;
 }
 
-// Simple Currency Input - works with HTML number input
+// Get locale-specific decimal separator
+function getDecimalSeparator(locale) {
+  try {
+    const formatter = new Intl.NumberFormat(locale);
+    const parts = formatter.formatToParts(1.1);
+    const decimalPart = parts.find(part => part.type === 'decimal');
+    return decimalPart ? decimalPart.value : '.';
+  } catch (e) {
+    return '.';
+  }
+}
+
+// Get locale-specific thousands separator
+function getThousandsSeparator(locale) {
+  try {
+    const formatter = new Intl.NumberFormat(locale);
+    const parts = formatter.formatToParts(1000);
+    const groupPart = parts.find(part => part.type === 'group');
+    return groupPart ? groupPart.value : ',';
+  } catch (e) {
+    return ',';
+  }
+}
+
+// Parse locale-formatted number string to actual number
+function parseLocaleNumber(str, locale) {
+  if (!str) return 0;
+  
+  const decimalSep = getDecimalSeparator(locale);
+  const thousandsSep = getThousandsSeparator(locale);
+  
+  // Remove thousands separators and replace decimal separator with dot
+  const cleanStr = str
+    .replace(new RegExp('\\' + thousandsSep, 'g'), '')
+    .replace(new RegExp('\\' + decimalSep, 'g'), '.');
+  
+  return parseFloat(cleanStr) || 0;
+}
+
+// Format number according to locale
+function formatLocaleNumber(num, locale, maxDecimals = 2) {
+  if (num === 0 || num === null || num === undefined) return '';
+  
+  try {
+    return new Intl.NumberFormat(locale, {
+      minimumFractionDigits: 0,
+      maximumFractionDigits: maxDecimals,
+      useGrouping: false // Don't use thousands separators in input fields
+    }).format(num);
+  } catch (e) {
+    return num.toString();
+  }
+}
+
+// Internationalized Currency Input
 function createCurrencyInput(inputEl, initialCurrency, initialLocale) {
   let currency = initialCurrency;
   let locale = initialLocale;
   let isUpdating = false;
+  let lastValidValue = '';
+
+  // Convert input to text type for better control
+  inputEl.type = 'text';
+  inputEl.inputMode = 'decimal';
+  
+  // Set locale-specific placeholder
+  const decimalSep = getDecimalSeparator(locale);
+  inputEl.placeholder = `0${decimalSep}00`;
 
   function handleInput() {
     if (isUpdating) return;
     
-    const numValue = parseFloat(inputEl.value) || 0;
-    inputEl.dispatchEvent(new CustomEvent('masked-change', {
-      bubbles: true,
-      detail: { number: numValue }
-    }));
+    const inputValue = inputEl.value;
+    const numValue = parseLocaleNumber(inputValue, locale);
+    
+    // Only update if we have a valid number
+    if (!isNaN(numValue)) {
+      lastValidValue = inputValue;
+      inputEl.dispatchEvent(new CustomEvent('masked-change', {
+        bubbles: true,
+        detail: { number: numValue }
+      }));
+    }
+  }
+
+  function handleBlur() {
+    if (isUpdating) return;
+    
+    const numValue = parseLocaleNumber(inputEl.value, locale);
+    if (!isNaN(numValue) && numValue !== 0) {
+      isUpdating = true;
+      inputEl.value = formatLocaleNumber(numValue, locale);
+      isUpdating = false;
+    }
   }
 
   inputEl.addEventListener('input', handleInput);
+  inputEl.addEventListener('blur', handleBlur);
   inputEl.addEventListener('keydown', (e) => {
     // Allow Enter to move to next field
     if (e.key === 'Enter') {
@@ -252,22 +333,60 @@ function createCurrencyInput(inputEl, initialCurrency, initialLocale) {
         document.getElementById('from-amount');
       if (nextField) nextField.focus();
     }
+    
+    // Allow standard navigation and editing keys
+    if (['Backspace', 'Delete', 'Tab', 'Escape', 'Enter', 'Home', 'End', 'ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(e.key)) {
+      return;
+    }
+    
+    // Allow Ctrl+A, Ctrl+C, Ctrl+V, Ctrl+X
+    if (e.ctrlKey || e.metaKey) {
+      return;
+    }
+    
+    // Allow digits
+    if (e.key >= '0' && e.key <= '9') {
+      return;
+    }
+    
+    // Allow locale-specific decimal separator
+    const decimalSep = getDecimalSeparator(locale);
+    if (e.key === decimalSep && !inputEl.value.includes(decimalSep)) {
+      return;
+    }
+    
+    // Block invalid characters
+    e.preventDefault();
   });
 
   return {
     setCurrency(nextCurrency, nextLocale) {
       currency = nextCurrency;
-      locale = nextLocale || locale;
-      // No need to update display - number inputs handle themselves
+      if (nextLocale !== locale) {
+        locale = nextLocale;
+        // Update placeholder for new locale
+        const decimalSep = getDecimalSeparator(locale);
+        inputEl.placeholder = `0${decimalSep}00`;
+        
+        // Reformat current value for new locale
+        const currentNum = this.getNumber();
+        if (currentNum !== 0) {
+          this.setNumber(currentNum);
+        }
+      }
     },
     setNumber(n) { 
       if (isUpdating) return;
       isUpdating = true;
-      inputEl.value = (n || 0).toString();
+      if (n === 0 || n === null || n === undefined) {
+        inputEl.value = '';
+      } else {
+        inputEl.value = formatLocaleNumber(n, locale);
+      }
       isUpdating = false;
     },
     getNumber() { 
-      return parseFloat(inputEl.value) || 0;
+      return parseLocaleNumber(inputEl.value, locale);
     }
   };
 }
