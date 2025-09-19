@@ -83,11 +83,9 @@ A modern, offline-capable Progressive Web App (PWA) for currency conversion with
 
 ## 🌐 Deployment
 
-### GitHub Pages (Automated)
+### GitHub Pages (Simple)
 
-The project includes GitHub Actions for automatic deployment:
-
-1. **Push to GitHub** (deployment happens automatically):
+1. **Push to GitHub**:
    ```bash
    git add .
    git commit -m "Update currency converter"
@@ -96,16 +94,13 @@ The project includes GitHub Actions for automatic deployment:
 
 2. **Enable GitHub Pages** (one-time setup):
    - Go to **Settings** → **Pages**
-   - Choose **GitHub Actions** as source
-   - The workflow will deploy automatically on every push to main
+   - Choose **Deploy from a branch**
+   - Select **main** branch and **/ (root)** folder
+   - Save
 
 3. **Access your app**: `https://yourusername.github.io/currency-converter/`
 
-### GitHub Actions Workflow
-- **Triggers**: Push to main branch or manual dispatch
-- **Build**: No build process needed (static files)
-- **Deploy**: Automatic deployment to GitHub Pages
-- **Status**: Check the "Actions" tab for deployment status
+No build process needed - GitHub Pages serves the static files directly!
 
 ### Other Hosting
 
