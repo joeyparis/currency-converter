@@ -1,0 +1,30 @@
+{
+  "name": "currency-converter",
+  "version": "1.0.0",
+  "private": false,
+  "description": "Mobile-friendly SPA currency converter PWA with offline caching using plain HTML/CSS/JS.",
+  "author": "Joey Paris",
+  "license": "MIT",
+  "homepage": "https://joeyparis.github.io/currency-converter",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/joeyparis/currency-converter.git"
+  },
+  "bugs": {
+    "url": "https://github.com/joeyparis/currency-converter/issues"
+  },
+  "keywords": [
+    "currency",
+    "converter",
+    "pwa",
+    "offline",
+    "mobile",
+    "exchange-rates",
+    "javascript",
+    "html",
+    "css"
+  ],
+  "engines": {
+    "node": ">=14.0.0"
+  }
+}

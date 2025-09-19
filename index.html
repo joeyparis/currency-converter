@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#0d6efd">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="msapplication-TileColor" content="#0d6efd">
+  <meta name="description" content="Offline-capable currency converter with locale-aware formatting">
+  
+  <title>Currency Converter</title>
+  
+  <link rel="preconnect" href="https://api.frankfurter.app">
+  <link rel="preconnect" href="https://cdn.jsdelivr.net">
+  
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
+  <link rel="stylesheet" href="styles.css">
+  <link rel="manifest" href="manifest.json">
+  
+  <link rel="icon" href="assets/favicon.ico" sizes="any">
+  <link rel="apple-touch-icon" href="assets/apple-touch-icon.png">
+  <link rel="icon" href="assets/icon-512.png" type="image/png">
+</head>
+<body>
+  <!-- Header -->
+  <header class="bg-primary text-white py-3 mb-3">
+    <div class="container">
+      <div class="row align-items-center">
+        <div class="col">
+          <h1 class="h4 mb-0">Currency Converter</h1>
+        </div>
+        <div class="col-auto">
+          <button id="install-button" class="btn btn-outline-light btn-sm d-none" aria-label="Install app">
+            Install
+          </button>
+          <button id="refresh-button" class="btn btn-outline-light btn-sm ms-2" 
+                  aria-label="Force refresh app" title="Clear cache and reload">
+            🔄
+          </button>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- Status Banners -->
+  <div id="offline-banner" class="alert alert-warning alert-dismissible mb-0 d-none" role="alert">
+    <div class="container">
+      <strong>Offline</strong> - Using cached data when available
+    </div>
+  </div>
+
+  <div id="stale-banner" class="alert alert-info alert-dismissible mb-0 d-none" role="alert">
+    <div class="container">
+      <strong>Using cached rates</strong> - Data may be outdated
+    </div>
+  </div>
+
+  <!-- Main Content -->
+  <main class="container">
+    <!-- Provider Selection -->
+    <div class="card mb-3">
+      <div class="card-body py-3">
+        <div class="row g-3 align-items-center">
+          <div class="col-md-4">
+            <label for="provider-select" class="form-label mb-0">Exchange Rate Provider</label>
+            <select class="form-select" id="provider-select" aria-label="Select exchange rate provider">
+              <option value="frankfurter">Frankfurter (Free - 31 currencies)</option>
+              <option value="unirate">UniRateAPI (API Key Required - 170+ currencies)</option>
+            </select>
+            <div class="form-text">Choose your data source</div>
+          </div>
+          <div class="col-md-8">
+            <div id="api-key-section" class="d-none">
+              <label for="api-key-input" class="form-label mb-0">API Key</label>
+              <div class="input-group">
+                <input type="password" class="form-control" id="api-key-input" 
+                       placeholder="Enter your UniRateAPI key" 
+                       aria-describedby="api-key-help">
+                <button class="btn btn-outline-secondary" type="button" id="toggle-api-key" 
+                        aria-label="Toggle API key visibility">
+                  👁️
+                </button>
+                <button class="btn btn-success" type="button" id="save-api-key">
+                  Save
+                </button>
+              </div>
+              <div id="api-key-help" class="form-text">
+                Get your free API key at <a href="https://unirateapi.com" target="_blank" rel="noopener">unirateapi.com</a>
+              </div>
+            </div>
+            <div id="provider-info" class="small text-muted">
+              Using Frankfurter.app - Free service with 31 major currencies
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Converter Panel -->
+    <div class="card shadow-sm mb-4">
+      <div class="card-body p-4">
+        
+        <!-- From Row -->
+        <div class="row g-3 align-items-end mb-3">
+          <div class="col-7">
+            <label for="from-amount" class="form-label">From Amount</label>
+            <input type="number" class="form-control form-control-lg" id="from-amount" 
+                   aria-describedby="from-amount-help" step="0.01" min="0" autocomplete="off"
+                   placeholder="0.00">
+            <div id="from-amount-help" class="form-text">Enter the amount to convert</div>
+          </div>
+          <div class="col-5">
+            <label for="from-currency" class="form-label">Currency</label>
+            <select class="form-select form-select-lg" id="from-currency" aria-label="From currency">
+              <option value="">Loading...</option>
+            </select>
+            <div class="form-text">Source currency</div>
+          </div>
+        </div>
+
+        <!-- Swap Button -->
+        <div class="text-center mb-3">
+          <button id="swap-button" class="btn btn-outline-primary btn-lg" aria-label="Swap currencies"
+                  style="min-height: 44px; min-width: 44px;">
+            ⇅
+          </button>
+        </div>
+
+        <!-- To Row -->
+        <div class="row g-3 align-items-end">
+          <div class="col-7">
+            <label for="to-amount" class="form-label">To Amount</label>
+            <input type="number" class="form-control form-control-lg" id="to-amount" 
+                   aria-describedby="to-amount-help" step="0.01" min="0" autocomplete="off"
+                   placeholder="0.00">
+            <div id="to-amount-help" class="form-text">Converted amount</div>
+          </div>
+          <div class="col-5">
+            <label for="to-currency" class="form-label">Currency</label>
+            <select class="form-select form-select-lg" id="to-currency" aria-label="To currency">
+              <option value="">Loading...</option>
+            </select>
+            <div class="form-text">Target currency</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Rate Information -->
+    <div class="card mb-4">
+      <div class="card-body">
+        <div id="rate-display" aria-live="polite" aria-atomic="true">
+          <div id="rate-line" class="fw-semibold mb-2">Loading exchange rate...</div>
+          <div id="updated-line" class="text-muted small">Fetching latest rates...</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Error Area -->
+    <div id="error-area" class="alert alert-danger d-none" role="alert">
+      <div id="error-message"></div>
+      <button id="retry-button" class="btn btn-outline-danger btn-sm mt-2">
+        Retry
+      </button>
+    </div>
+  </main>
+
+  <!-- Footer -->
+  <footer class="bg-light py-4 mt-5">
+    <div class="container text-center">
+      <p class="text-muted small mb-1">
+        Exchange rates provided by <a href="https://www.frankfurter.app/" target="_blank" 
+        rel="noopener noreferrer" class="text-decoration-none">frankfurter.app</a>
+      </p>
+      <p class="text-muted small mb-0">
+        <a href="https://github.com/joeyparis/currency-converter" target="_blank" 
+        rel="noopener noreferrer" class="text-decoration-none">MIT License</a>
+      </p>
+    </div>
+  </footer>
+
+  <script defer src="script.js"></script>
+</body>
+</html>

@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="192" height="192" viewBox="0 0 192 192">
+  <rect width="192" height="192" fill="#0d6efd" rx="24"/>
+  <circle cx="72" cy="64" r="32" fill="none" stroke="white" stroke-width="6"/>
+  <text x="72" y="70" text-anchor="middle" fill="white" font-size="18" font-family="system-ui">$</text>
+  <circle cx="120" cy="128" r="32" fill="none" stroke="white" stroke-width="6"/>
+  <text x="120" y="134" text-anchor="middle" fill="white" font-size="18" font-family="system-ui">¥</text>
+  <path d="M88 80 L104 112" stroke="white" stroke-width="4" fill="none" marker-end="url(#arrow)"/>
+  <defs>
+    <marker id="arrow" markerWidth="10" markerHeight="10" refX="5" refY="3" orient="auto">
+      <polygon points="0 0, 10 3, 0 6" fill="white"/>
+    </marker>
+  </defs>
+</svg>

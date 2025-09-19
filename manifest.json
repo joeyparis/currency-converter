@@ -1,0 +1,47 @@
+{
+  "id": "/currency-converter/",
+  "name": "Currency Converter",
+  "short_name": "Currency",
+  "description": "Offline-capable currency converter with locale-aware formatting using frankfurter.app",
+  "start_url": "/currency-converter/",
+  "scope": "/currency-converter/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0d6efd",
+  "theme_color": "#0d6efd",
+  "categories": ["finance", "utilities", "productivity"],
+  "lang": "en",
+  "icons": [
+    {
+      "src": "assets/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "assets/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    },
+    {
+      "src": "assets/icon-512-maskable.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Convert USD to EUR",
+      "url": "/currency-converter/?from=USD&to=EUR",
+      "description": "Quick conversion from US Dollar to Euro"
+    }
+  ],
+  "screenshots": [
+    {
+      "src": "assets/screenshot-mobile.png",
+      "sizes": "400x800",
+      "type": "image/png",
+      "form_factor": "narrow"
+    }
+  ]
+}
