@@ -61,23 +61,19 @@
           <div class="col-12 col-sm-8">
             <label for="from-amount" class="form-label">From Amount</label>
             <input type="number" class="form-control form-control-lg" id="from-amount" 
-                   aria-describedby="from-amount-help" step="0.01" min="0" autocomplete="off"
-                   placeholder="0.00">
-            <div id="from-amount-help" class="form-text">Enter the amount to convert</div>
+                   step="0.01" min="0" autocomplete="off" placeholder="0.00">
           </div>
           <div class="col-12 col-sm-4">
             <label for="from-currency" class="form-label">Currency</label>
             <select class="form-select form-select-lg" id="from-currency" aria-label="From currency">
               <option value="">Loading...</option>
             </select>
-            <div class="form-text">Source currency</div>
           </div>
         </div>
 
         <!-- Swap Button -->
-        <div class="text-center mb-3">
-          <button id="swap-button" class="btn btn-outline-primary btn-lg" aria-label="Swap currencies"
-                  style="min-height: 44px; min-width: 44px;">
+        <div class="text-center mb-2">
+          <button id="swap-button" class="btn btn-outline-primary" aria-label="Swap currencies">
             ⇅
           </button>
         </div>
@@ -87,16 +83,13 @@
           <div class="col-12 col-sm-8">
             <label for="to-amount" class="form-label">To Amount</label>
             <input type="number" class="form-control form-control-lg" id="to-amount" 
-                   aria-describedby="to-amount-help" step="0.01" min="0" autocomplete="off"
-                   placeholder="0.00">
-            <div id="to-amount-help" class="form-text">Converted amount</div>
+                   step="0.01" min="0" autocomplete="off" placeholder="0.00">
           </div>
           <div class="col-12 col-sm-4">
             <label for="to-currency" class="form-label">Currency</label>
             <select class="form-select form-select-lg" id="to-currency" aria-label="To currency">
               <option value="">Loading...</option>
             </select>
-            <div class="form-text">Target currency</div>
           </div>
         </div>
       </div>
