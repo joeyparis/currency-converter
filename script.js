@@ -13,7 +13,7 @@ const PROVIDERS = {
     ratesEndpoint: '/latest',
     maxCurrencies: 31
   },
-  unirate: {
+  unirateapi: {
     name: 'UniRateAPI', 
     description: 'Premium service with 170+ currencies',
     apiBase: 'https://api.unirateapi.com/api',
@@ -245,7 +245,7 @@ async function loadCurrencies() {
     let currencies;
     if (currentProvider === 'frankfurter') {
       currencies = responseData; // Direct object format: {"USD": "United States Dollar"}
-    } else if (currentProvider === 'unirate') {
+    } else if (currentProvider === 'unirateapi') {
       // UniRateAPI returns different format - check what we actually get
       console.log('UniRateAPI currencies response:', responseData);
       
@@ -351,7 +351,7 @@ async function getRate(from, to) {
     if (currentProvider === 'frankfurter') {
       params = { from, to, amount: '1' };
       url = buildApiUrl(provider.ratesEndpoint, params);
-    } else if (currentProvider === 'unirate') {
+    } else if (currentProvider === 'unirateapi') {
       // UniRateAPI uses /api/rates with from and to parameters
       params = { from, to };
       url = buildApiUrl('/rates', params); // Use /rates instead of provider.ratesEndpoint
@@ -379,7 +379,7 @@ async function getRate(from, to) {
     if (currentProvider === 'frankfurter') {
       rate = json.rates[to];
       apiDate = json.date;
-    } else if (currentProvider === 'unirate') {
+    } else if (currentProvider === 'unirateapi') {
       // UniRateAPI /api/rates response format
       if (json.rates && json.rates[to]) {
         rate = json.rates[to];
@@ -420,7 +420,7 @@ async function getRate(from, to) {
 // DOM Elements
 let fromAmountInput, toAmountInput, fromCurrencySelect, toCurrencySelect;
 let swapButton, rateLine, updatedLine, errorArea, errorMessage, retryButton;
-let offlineBanner, staleBanner, installButton, refreshButton;
+let offlineBanner, staleBanner, installButton;
 let providerSelect, apiKeySection, apiKeyInput, toggleApiKeyButton, saveSettingsButton, forceRefreshButton;
 let fromMask, toMask;
 
@@ -927,6 +927,9 @@ async function init() {
     currentProvider = savedProvider;
   }
   
+  // Load API key for current provider immediately
+  apiKey = loadApiKey();
+  
   // Get DOM elements
   fromAmountInput = document.getElementById('from-amount');
   toAmountInput = document.getElementById('to-amount');
@@ -941,7 +944,6 @@ async function init() {
   offlineBanner = document.getElementById('offline-banner');
   staleBanner = document.getElementById('stale-banner');
   installButton = document.getElementById('install-button');
-  refreshButton = document.getElementById('refresh-button');
   
   // Provider UI elements
   providerSelect = document.getElementById('provider-select');
@@ -990,7 +992,6 @@ async function init() {
   window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
   window.addEventListener('appinstalled', handleAppInstalled);
   installButton.addEventListener('click', handleInstallClick);
-  refreshButton.addEventListener('click', handleForceRefresh);
   
   // Network events
   window.addEventListener('online', handleOnline);
