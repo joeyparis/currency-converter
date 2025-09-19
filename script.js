@@ -165,6 +165,41 @@ function loadCurrencySelection() {
   return null;
 }
 
+// Amount values persistence functions
+function saveAmountValues() {
+  try {
+    const fromAmount = fromMask ? fromMask.getNumber() : 0;
+    const toAmount = toMask ? toMask.getNumber() : 0;
+    
+    localStorage.setItem('saved-amounts', JSON.stringify({
+      fromAmount,
+      toAmount,
+      savedAt: Date.now()
+    }));
+  } catch (e) {
+    console.warn('Failed to save amount values:', e);
+  }
+}
+
+function loadAmountValues() {
+  try {
+    const saved = localStorage.getItem('saved-amounts');
+    if (saved) {
+      const data = JSON.parse(saved);
+      // Use saved amounts if they exist and were saved within last 24 hours
+      if ((data.fromAmount || data.toAmount) && (Date.now() - data.savedAt) < 24 * 60 * 60 * 1000) {
+        return {
+          fromAmount: data.fromAmount || 0,
+          toAmount: data.toAmount || 0
+        };
+      }
+    }
+  } catch (e) {
+    console.warn('Failed to load amount values:', e);
+  }
+  return null;
+}
+
 function buildApiHeaders() {
   const provider = getProviderConfig();
   const headers = {
@@ -743,6 +778,9 @@ async function refreshRateAndConvert(preferredSourceField = 'from') {
     }
     isUpdatingProgrammatically = false;
     
+    // Save the updated amounts
+    saveAmountValues();
+    
     // Add success animation
     document.getElementById('rate-display').classList.add('conversion-success');
     setTimeout(() => {
@@ -765,6 +803,7 @@ function handleFromAmountChange(event) {
     toMask.setNumber(event.detail.number * currentRate.rate);
     isUpdatingProgrammatically = false;
   }
+  saveAmountValues();
 }
 
 function handleToAmountChange(event) {
@@ -774,6 +813,7 @@ function handleToAmountChange(event) {
     fromMask.setNumber(event.detail.number / currentRate.rate);
     isUpdatingProgrammatically = false;
   }
+  saveAmountValues();
 }
 
 function handleFromCurrencyChange() {
@@ -806,8 +846,9 @@ function handleSwap() {
   fromMask.setCurrency(fromCurrency, getLocaleForCurrency(fromCurrency));
   toMask.setCurrency(toCurrency, getLocaleForCurrency(toCurrency));
   
-  // Save the new currency selection
+  // Save the new currency selection and amounts
   saveCurrencySelection();
+  saveAmountValues();
   
   // Refresh rate and convert
   refreshRateAndConvert('from');
@@ -1076,8 +1117,16 @@ async function init() {
   toggleOfflineBanner(!navigator.onLine);
   
   try {
-    // Set initial amount
-    fromMask.setNumber(100);
+    // Load saved amounts or set default
+    const savedAmounts = loadAmountValues();
+    if (savedAmounts && (savedAmounts.fromAmount > 0 || savedAmounts.toAmount > 0)) {
+      fromMask.setNumber(savedAmounts.fromAmount);
+      toMask.setNumber(savedAmounts.toAmount);
+      console.log('Loaded saved amounts:', savedAmounts.fromAmount, 'and', savedAmounts.toAmount);
+    } else {
+      // Set default amount if no saved amounts
+      fromMask.setNumber(100);
+    }
     
     // Load currencies and rates
     await loadAndPopulateCurrencies();
