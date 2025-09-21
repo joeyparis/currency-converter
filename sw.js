@@ -1,7 +1,7 @@
 // Currency Converter Service Worker
 // Stable caching strategy for better iOS persistence
 const VERSION = 'v4-stable'; // Stable version for better iOS persistence
-const BUILD_VERSION = '2025.09.21.1101'; // Keep in sync with script.js
+const BUILD_VERSION = '2025.09.21.1108'; // Keep in sync with script.js
 const APP_CACHE = `currency-converter-${VERSION}`;
 const CACHE_DURATION = 1000 * 60 * 60 * 24 * 7; // 7 days max cache for better persistence
 
@@ -9,6 +9,7 @@ const APP_ASSETS = [
   // Use absolute paths for better iOS PWA compatibility
   '/currency-converter/',
   '/currency-converter/index.html',
+  '/currency-converter/offline.html', // CRITICAL: Offline fallback page
   '/currency-converter/styles.css', 
   '/currency-converter/script.js',
   '/currency-converter/manifest.json',
@@ -20,6 +21,7 @@ const APP_ASSETS = [
   // Also cache relative paths for local development
   './',
   './index.html',
+  './offline.html', // CRITICAL: Offline fallback page (relative)
   './styles.css', 
   './script.js',
   './manifest.json',
@@ -162,9 +164,9 @@ self.addEventListener('fetch', (event) => {
         // Strategy 2: For navigation, try multiple fallbacks
         if (!cached && request.mode === 'navigate') {
           const fallbackPaths = [
-            './index.html',
+            '/currency-converter/', // CRITICAL: Must match manifest start_url exactly
             '/currency-converter/index.html',
-            '/currency-converter/',
+            './index.html',
             './'
           ];
           
@@ -211,9 +213,14 @@ self.addEventListener('fetch', (event) => {
           // Cache with both the original request and a normalized version
           await cache.put(request, networkResponse.clone());
           
-          // For navigation requests, also cache as index.html for iOS PWA
+          // For navigation requests, cache multiple variations for iOS PWA compatibility
           if (request.mode === 'navigate') {
+            // Cache as index.html for relative path access
             await cache.put('./index.html', networkResponse.clone());
+            // CRITICAL: Cache as exact start_url from manifest
+            await cache.put('/currency-converter/', networkResponse.clone());
+            // Cache as start_url with index.html
+            await cache.put('/currency-converter/index.html', networkResponse.clone());
           }
           
           return networkResponse;
@@ -230,7 +237,9 @@ self.addEventListener('fetch', (event) => {
           
           const cache = await caches.open(APP_CACHE);
           const emergencyPaths = [
-            './index.html',
+            './offline.html', // PRIORITY: Use dedicated offline page
+            '/currency-converter/offline.html', // Absolute path version
+            './index.html', // Fallback to main page
             '/currency-converter/index.html', 
             '/currency-converter/',
             './'

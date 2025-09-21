@@ -3,8 +3,85 @@
 const DEVICE_LOCALE = navigator.language || 'en-US';
 
 // Build version (updated on each build)
-const BUILD_VERSION = '2025.09.21.1101'; // YYYY.MM.DD.HHMM format
+const BUILD_VERSION = '2025.09.21.1108'; // YYYY.MM.DD.HHMM format
 const SW_VERSION = 'v4-stable';
+
+// Early iOS PWA offline detection
+(function checkIOSPWAOfflineMode() {
+  const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || 
+               (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  
+  const isPWA = window.matchMedia('(display-mode: standalone)').matches ||
+                window.navigator.standalone === true;
+  
+  if (isIOS && isPWA && !navigator.onLine) {
+    console.log('🚨 iOS PWA detected in offline mode - adding early offline banner');
+    
+    // Add offline indicator early
+    document.addEventListener('DOMContentLoaded', () => {
+      const banner = document.getElementById('offline-banner');
+      if (banner) {
+        banner.classList.remove('d-none');
+        banner.innerHTML = `
+          <div class="container">
+            <strong>iOS PWA Offline Mode</strong> - Loading cached data...
+            <button type="button" class="btn-close ms-auto" data-bs-dismiss="alert"></button>
+          </div>
+        `;
+      }
+      
+      // Try to show cached data immediately
+      setTimeout(() => {
+        loadCachedDataForIOSPWA();
+      }, 1000);
+    });
+  }
+})();
+
+// Function to load cached data for iOS PWA offline mode
+async function loadCachedDataForIOSPWA() {
+  try {
+    console.log('Attempting to load cached data for iOS PWA...');
+    
+    // Try to load cached currencies
+    const cachedCurrencies = localStorage.getItem('currencies-cache-frankfurter');
+    if (cachedCurrencies) {
+      const currencyData = JSON.parse(cachedCurrencies);
+      console.log('Found cached currencies:', Object.keys(currencyData.data).length);
+      
+      // Populate currency selects with cached data
+      populateCurrencySelects(currencyData.data);
+    }
+    
+    // Try to load cached rates
+    const fromCurrency = localStorage.getItem('selected-currencies');
+    if (fromCurrency) {
+      const currencies = JSON.parse(fromCurrency);
+      const rateKey = `rate:frankfurter:${currencies.from}:${currencies.to}`;
+      const cachedRate = localStorage.getItem(rateKey);
+      
+      if (cachedRate) {
+        const rateData = JSON.parse(cachedRate);
+        console.log('Found cached rate:', rateData.rate);
+        
+        // Show cached rate
+        const rateLine = document.getElementById('rate-line');
+        const updatedLine = document.getElementById('updated-line');
+        
+        if (rateLine && updatedLine) {
+          rateLine.textContent = `1 ${currencies.from} = ${rateData.rate} ${currencies.to} (cached)`;
+          const cacheDate = new Date(rateData.fetchedAt);
+          updatedLine.textContent = `Cached rate from ${cacheDate.toLocaleDateString()}`;
+        }
+      }
+    }
+    
+    console.log('✅ iOS PWA cached data loaded successfully');
+    
+  } catch (error) {
+    console.error('Failed to load cached data for iOS PWA:', error);
+  }
+}
 
 // Exchange Rate Providers Configuration
 const PROVIDERS = {

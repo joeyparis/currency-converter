@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Currency Converter</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="Currency Converter">
+  
+  <!-- Bootstrap CSS -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
+  
+  <!-- Font Awesome -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  
+  <!-- Custom Styles -->
+  <link rel="stylesheet" href="styles.css">
+  
+  <!-- PWA Manifest -->
+  <link rel="manifest" href="manifest.json">
+  
+  <!-- Icons -->
+  <link rel="icon" type="image/x-icon" href="assets/favicon.ico">
+  <link rel="apple-touch-icon" href="assets/apple-touch-icon.png">
+  
+  <style>
+    .offline-notice {
+      background: #fff3cd;
+      border: 1px solid #ffeaa7;
+      border-radius: 8px;
+      padding: 15px;
+      margin-bottom: 20px;
+      color: #856404;
+    }
+    
+    .retry-section {
+      text-align: center;
+      padding: 30px 20px;
+    }
+    
+    .pulse {
+      animation: pulse 2s infinite;
+    }
+    
+    @keyframes pulse {
+      0% { opacity: 1; }
+      50% { opacity: 0.5; }
+      100% { opacity: 1; }
+    }
+  </style>
+</head>
+<body class="bg-light">
+  <!-- Small Header -->
+  <header class="small-header bg-light border-bottom">
+    <div class="container">
+      <h1 class="h5 mb-0 py-2 text-center">Currency Converter</h1>
+    </div>
+  </header>
+
+  <!-- Main Content -->
+  <main class="container py-4">
+    <div class="card shadow-sm">
+      <div class="card-body">
+        <div class="offline-notice">
+          <div class="d-flex align-items-center">
+            <i class="fas fa-wifi-slash me-2"></i>
+            <div>
+              <strong>Offline Mode</strong><br>
+              <small>Loading full app functionality...</small>
+            </div>
+          </div>
+        </div>
+        
+        <div class="retry-section">
+          <div class="pulse mb-3">
+            <i class="fas fa-sync-alt fa-2x text-primary"></i>
+          </div>
+          <h5 class="mb-3">Initializing Currency Converter</h5>
+          <p class="text-muted mb-4">This may take a moment while we load your cached data.</p>
+          <button id="retry-btn" class="btn btn-primary btn-lg" onclick="retryLoad()">
+            <i class="fas fa-refresh me-2"></i>Try Again
+          </button>
+        </div>
+        
+        <div class="text-center mt-4">
+          <small class="text-muted">
+            PWA Offline Fallback • Build: Loading...
+          </small>
+        </div>
+      </div>
+    </div>
+  </main>
+  
+  <script>
+    console.log('Offline fallback page loaded');
+    
+    // Try to load the main app
+    function retryLoad() {
+      console.log('Retrying main app load');
+      
+      // First try to load the service worker
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('sw.js')
+          .then(() => {
+            console.log('Service worker registered, reloading...');
+            setTimeout(() => {
+              window.location.href = '/currency-converter/';
+            }, 500);
+          })
+          .catch(err => {
+            console.error('Service worker registration failed:', err);
+            // Try direct navigation
+            window.location.href = '/currency-converter/index.html';
+          });
+      } else {
+        // Fallback: try to load main page directly
+        window.location.href = '/currency-converter/index.html';
+      }
+    }
+    
+    // Auto-retry after 3 seconds
+    setTimeout(() => {
+      console.log('Auto-retrying main app load...');
+      retryLoad();
+    }, 3000);
+    
+    // Handle iOS PWA detection
+    const isPWA = window.matchMedia('(display-mode: standalone)').matches || 
+                  window.navigator.standalone === true;
+    
+    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || 
+                 (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+    
+    if (isIOS && isPWA) {
+      document.body.classList.add('ios-pwa');
+      console.log('iOS PWA detected in offline fallback');
+    }
+    
+    // Update build version if available
+    if (typeof BUILD_VERSION !== 'undefined') {
+      const buildEl = document.querySelector('.text-muted small');
+      if (buildEl) {
+        buildEl.textContent = `PWA Offline Fallback • Build: ${BUILD_VERSION}`;
+      }
+    }
+  </script>
+</body>
+</html>
