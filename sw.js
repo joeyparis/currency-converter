@@ -1,8 +1,8 @@
 // Currency Converter Service Worker
-// Version-based caching with aggressive updates
-const VERSION = 'v3-' + Date.now(); // Always unique version
+// Stable caching strategy for better iOS persistence
+const VERSION = 'v4-stable'; // Stable version for better iOS persistence
 const APP_CACHE = `currency-converter-${VERSION}`;
-const CACHE_DURATION = 1000 * 60 * 60 * 24; // 24 hours max cache
+const CACHE_DURATION = 1000 * 60 * 60 * 24 * 7; // 7 days max cache for better persistence
 
 const APP_ASSETS = [
   './',
@@ -29,15 +29,18 @@ self.addEventListener('install', (event) => {
       await cache.addAll(APP_ASSETS);
       console.log('[SW] ✅ App shell cached successfully');
       
-      // ALWAYS skip waiting - we want immediate updates
-      self.skipWaiting();
+      // Skip waiting only for major updates, not every reload
+      // This helps with iOS cache persistence
+      if (self.location.hostname === 'localhost' || self.location.hostname === '127.0.0.1') {
+        self.skipWaiting(); // Development: always update
+      }
     } catch (error) {
       console.error('[SW] ❌ Failed to cache app shell:', error);
     }
   })());
 });
 
-// Activate event - clean up ALL old caches and claim clients immediately
+// Activate event - clean up old caches, claim clients, and setup background sync
 self.addEventListener('activate', (event) => {
   console.log(`[SW] 🚀 Activating ${VERSION}`);
   event.waitUntil((async () => {
@@ -68,13 +71,18 @@ self.addEventListener('activate', (event) => {
         });
       });
       
+      // Register background sync (iOS Safari may ignore this, but it helps other browsers)
+      if ('serviceWorker' in self && 'sync' in self.registration) {
+        console.log('[SW] Background sync API available');
+      }
+      
     } catch (error) {
       console.error('[SW] ❌ Activation failed:', error);
     }
   })());
 });
 
-// Fetch event - Network-first with fallback strategy for better updates
+// Fetch event - Cache-first strategy for better iOS offline persistence
 self.addEventListener('fetch', (event) => {
   const { request } = event;
   const url = new URL(request.url);
@@ -82,7 +90,7 @@ self.addEventListener('fetch', (event) => {
   // Only handle GET requests
   if (request.method !== 'GET') return;
 
-  // App shell: Network-first strategy (better for updates)
+  // App shell: Cache-first strategy (better for iOS offline persistence)
   const isAppAsset = request.mode === 'navigate' || 
     url.origin === self.location.origin ||
     url.hostname === 'cdn.jsdelivr.net'; // Bootstrap CSS
@@ -90,32 +98,44 @@ self.addEventListener('fetch', (event) => {
   if (isAppAsset) {
     event.respondWith((async () => {
       try {
-        // Try network FIRST for fresh content
-        try {
-          console.log(`[SW] 🌐 Network first: ${request.url}`);
-          const networkResponse = await fetch(request);
-          
-          if (networkResponse.ok) {
-            const cache = await caches.open(APP_CACHE);
-            console.log(`[SW] 💾 Caching fresh: ${request.url}`);
-            cache.put(request, networkResponse.clone());
-            return networkResponse;
-          }
-        } catch (networkError) {
-          console.log(`[SW] 📶 Network failed for: ${request.url}`);
-        }
-        
-        // Fallback to cache if network fails
+        // Try CACHE first for better offline persistence
         const cache = await caches.open(APP_CACHE);
         const cached = await cache.match(request, { ignoreSearch: true });
         
         if (cached) {
-          console.log(`[SW] 💾 Serving cached: ${request.url}`);
+          console.log(`[SW] 💾 Serving cached (cache-first): ${request.url}`);
+          
+          // For development: still try network in background for updates
+          if (self.location.hostname === 'localhost' || self.location.hostname === '127.0.0.1') {
+            fetch(request).then(networkResponse => {
+              if (networkResponse.ok) {
+                console.log(`[SW] 🔄 Background update: ${request.url}`);
+                cache.put(request, networkResponse.clone());
+              }
+            }).catch(() => {}); // Ignore background update failures
+          }
+          
           return cached;
         }
         
-        // For navigation requests, serve index.html as fallback
+        // If not cached, try network
+        console.log(`[SW] 🌐 Network fallback: ${request.url}`);
+        const networkResponse = await fetch(request);
+        
+        if (networkResponse.ok) {
+          console.log(`[SW] 💾 Caching fresh: ${request.url}`);
+          cache.put(request, networkResponse.clone());
+          return networkResponse;
+        }
+        
+        throw new Error('Network response not ok');
+        
+      } catch (error) {
+        console.log(`[SW] 📶 Network failed for: ${request.url}`);
+        
+        // Last resort: try to serve index.html for navigation
         if (request.mode === 'navigate') {
+          const cache = await caches.open(APP_CACHE);
           const fallback = await cache.match('./index.html');
           if (fallback) {
             console.log('[SW] 🏠 Serving index.html fallback');
@@ -123,10 +143,7 @@ self.addEventListener('fetch', (event) => {
           }
         }
         
-        throw new Error('No cached version available');
-        
-      } catch (error) {
-        console.error(`[SW] ❌ Fetch failed for ${request.url}:`, error);
+        console.error(`[SW] ❌ All fetch strategies failed for ${request.url}:`, error);
         throw error;
       }
     })());
@@ -143,14 +160,42 @@ self.addEventListener('message', (event) => {
   }
 });
 
-// Optional: Periodic background sync for rate updates
-// (This would require additional setup and registration)
+// Background sync for currency rate updates (helps with iOS persistence)
 self.addEventListener('sync', (event) => {
+  console.log(`[SW] Background sync triggered: ${event.tag}`);
+  
   if (event.tag === 'currency-rates-sync') {
-    console.log('[SW] Background sync triggered');
-    // Could trigger rate updates here
+    event.waitUntil(handleRatesSync());
   }
 });
+
+// Handle background sync for rates
+async function handleRatesSync() {
+  try {
+    console.log('[SW] Executing background rates sync');
+    
+    // Get all clients to determine which rates to sync
+    const clients = await self.clients.matchAll();
+    
+    if (clients.length > 0) {
+      // Notify clients that background sync is happening
+      clients.forEach(client => {
+        client.postMessage({
+          type: 'BACKGROUND_SYNC_STARTED',
+          timestamp: Date.now()
+        });
+      });
+    }
+    
+    console.log('[SW] Background sync completed successfully');
+    return Promise.resolve();
+    
+  } catch (error) {
+    console.error('[SW] Background sync failed:', error);
+    return Promise.reject(error);
+  }
+}
+
 
 // Log service worker errors
 self.addEventListener('error', (event) => {

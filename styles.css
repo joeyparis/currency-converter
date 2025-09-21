@@ -305,3 +305,44 @@ footer {
     transition: none;
   }
 }
+
+/* iOS-specific optimizations for better memory management */
+.ios-device {
+  /* Prevent iOS Safari from being too aggressive with memory management */
+  -webkit-transform: translate3d(0, 0, 0);
+  transform: translate3d(0, 0, 0);
+}
+
+.ios-device .card {
+  /* Use hardware acceleration to keep content in GPU memory */
+  -webkit-transform: translateZ(0);
+  transform: translateZ(0);
+  -webkit-backface-visibility: hidden;
+  backface-visibility: hidden;
+}
+
+/* Improve iOS scrolling and touch performance */
+@supports (-webkit-overflow-scrolling: touch) {
+  .ios-device {
+    -webkit-overflow-scrolling: touch;
+  }
+  
+  .ios-device .container {
+    /* Hint to iOS to keep this content in memory */
+    -webkit-transform: translate3d(0, 0, 0);
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+/* iOS viewport fixes */
+@media screen and (max-width: 768px) {
+  .ios-device .container {
+    /* Prevent zoom on focus for iOS */
+    font-size: 16px;
+  }
+  
+  .ios-device input[type="text"] {
+    /* Prevent iOS zoom on input focus */
+    font-size: 16px;
+  }
+}

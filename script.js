@@ -74,6 +74,135 @@ let isUpdatingProgrammatically = false;
 let debounceTimer = null;
 let deferredPrompt = null;
 
+// IndexedDB Storage Layer (better persistence on iOS than localStorage)
+class PersistentStorage {
+  constructor() {
+    this.dbName = 'CurrencyConverterDB';
+    this.dbVersion = 1;
+    this.db = null;
+  }
+  
+  async init() {
+    if (this.db) return this.db;
+    
+    return new Promise((resolve, reject) => {
+      const request = indexedDB.open(this.dbName, this.dbVersion);
+      
+      request.onerror = () => {
+        console.warn('IndexedDB failed to open, falling back to localStorage');
+        resolve(null); // Fall back to localStorage
+      };
+      
+      request.onsuccess = (event) => {
+        this.db = event.target.result;
+        console.log('IndexedDB initialized successfully');
+        resolve(this.db);
+      };
+      
+      request.onupgradeneeded = (event) => {
+        const db = event.target.result;
+        
+        // Create object stores
+        if (!db.objectStoreNames.contains('currencies')) {
+          db.createObjectStore('currencies', { keyPath: 'provider' });
+        }
+        
+        if (!db.objectStoreNames.contains('rates')) {
+          db.createObjectStore('rates', { keyPath: 'key' });
+        }
+        
+        if (!db.objectStoreNames.contains('settings')) {
+          db.createObjectStore('settings', { keyPath: 'key' });
+        }
+      };
+    });
+  }
+  
+  async set(store, key, data) {
+    try {
+      await this.init();
+      
+      if (!this.db) {
+        // Fallback to localStorage
+        localStorage.setItem(key, JSON.stringify(data));
+        return;
+      }
+      
+      const transaction = this.db.transaction([store], 'readwrite');
+      const objectStore = transaction.objectStore(store);
+      
+      const record = typeof data === 'object' && data !== null ? 
+        { ...data, key } : { key, data };
+      
+      await new Promise((resolve, reject) => {
+        const request = objectStore.put(record);
+        request.onsuccess = () => resolve();
+        request.onerror = () => reject(request.error);
+      });
+      
+    } catch (error) {
+      console.warn('IndexedDB write failed, using localStorage:', error);
+      localStorage.setItem(key, JSON.stringify(data));
+    }
+  }
+  
+  async get(store, key) {
+    try {
+      await this.init();
+      
+      if (!this.db) {
+        // Fallback to localStorage
+        const item = localStorage.getItem(key);
+        return item ? JSON.parse(item) : null;
+      }
+      
+      const transaction = this.db.transaction([store], 'readonly');
+      const objectStore = transaction.objectStore(store);
+      
+      return new Promise((resolve, reject) => {
+        const request = objectStore.get(key);
+        request.onsuccess = () => {
+          const result = request.result;
+          resolve(result ? (result.data || result) : null);
+        };
+        request.onerror = () => reject(request.error);
+      });
+      
+    } catch (error) {
+      console.warn('IndexedDB read failed, using localStorage:', error);
+      const item = localStorage.getItem(key);
+      return item ? JSON.parse(item) : null;
+    }
+  }
+  
+  async remove(store, key) {
+    try {
+      await this.init();
+      
+      if (!this.db) {
+        localStorage.removeItem(key);
+        return;
+      }
+      
+      const transaction = this.db.transaction([store], 'readwrite');
+      const objectStore = transaction.objectStore(store);
+      
+      await new Promise((resolve, reject) => {
+        const request = objectStore.delete(key);
+        request.onsuccess = () => resolve();
+        request.onerror = () => reject(request.error);
+      });
+      
+    } catch (error) {
+      console.warn('IndexedDB delete failed, using localStorage:', error);
+      localStorage.removeItem(key);
+    }
+  }
+}
+
+// Global persistent storage instance
+const persistentStorage = new PersistentStorage();
+
 // Utility Functions
 function currencyFractionDigits(currency) {
   try {
@@ -117,22 +246,39 @@ function getProviderConfig() {
   return PROVIDERS[currentProvider];
 }
 
-function loadApiKey() {
-  const stored = localStorage.getItem(`api-key-${currentProvider}`);
-  return stored ? stored : null;
+async function loadApiKey() {
+  try {
+    const stored = await persistentStorage.get('settings', `api-key-${currentProvider}`);
+    return stored ? stored.data || stored : null;
+  } catch (error) {
+    // Fallback to localStorage
+    const stored = localStorage.getItem(`api-key-${currentProvider}`);
+    return stored ? stored : null;
+  }
 }
 
-function saveApiKey(key) {
+async function saveApiKey(key) {
   if (key && key.trim()) {
-    localStorage.setItem(`api-key-${currentProvider}`, key.trim());
-    apiKey = key.trim();
-    return true;
+    try {
+      await persistentStorage.set('settings', `api-key-${currentProvider}`, key.trim());
+      apiKey = key.trim();
+      return true;
+    } catch (error) {
+      // Fallback to localStorage
+      localStorage.setItem(`api-key-${currentProvider}`, key.trim());
+      apiKey = key.trim();
+      return true;
+    }
   }
   return false;
 }
 
-function clearApiKey() {
-  localStorage.removeItem(`api-key-${currentProvider}`);
+async function clearApiKey() {
+  try {
+    await persistentStorage.remove('settings', `api-key-${currentProvider}`);
+  } catch (error) {
+    localStorage.removeItem(`api-key-${currentProvider}`);
+  }
   apiKey = null;
 }
 
@@ -425,10 +571,18 @@ async function loadCurrencies() {
   
   // Check if provider requires API key but none is available
   if (provider.requiresApiKey && !apiKey) {
-    const cached = localStorage.getItem(key);
-    if (cached) {
-      const cachedData = JSON.parse(cached);
-      return cachedData.data;
+    try {
+      const cached = await persistentStorage.get('currencies', key);
+      if (cached && cached.data) {
+        return cached.data;
+      }
+    } catch (error) {
+      // Fallback to localStorage
+      const cached = localStorage.getItem(key);
+      if (cached) {
+        const cachedData = JSON.parse(cached);
+        return cachedData.data;
+      }
     }
     throw new Error('API key required for this provider');
   }
@@ -512,21 +666,39 @@ async function loadCurrencies() {
       console.log('Parsed UniRateAPI currencies:', currencies);
     }
     
-    localStorage.setItem(key, JSON.stringify({ 
+    const cacheData = { 
+      provider: currentProvider,
       data: currencies, 
       fetchedAt: Date.now() 
-    }));
+    };
+    
+    // Store in IndexedDB with localStorage fallback
+    try {
+      await persistentStorage.set('currencies', key, cacheData);
+    } catch (error) {
+      // Fallback to localStorage
+      localStorage.setItem(key, JSON.stringify(cacheData));
+    }
     
     return currencies;
   } catch (e) {
     console.error('Failed to load currencies:', e.message);
     console.error('Provider:', currentProvider, 'API Key present:', !!apiKey);
     
-    const cached = localStorage.getItem(key);
-    if (cached) {
-      const cachedData = JSON.parse(cached);
-      console.log('Using cached currencies:', cachedData.data);
-      return cachedData.data;
+    // Try IndexedDB first, then localStorage fallback
+    try {
+      const cached = await persistentStorage.get('currencies', key);
+      if (cached && cached.data) {
+        console.log('Using cached currencies from IndexedDB:', cached.data);
+        return cached.data;
+      }
+    } catch (error) {
+      const cached = localStorage.getItem(key);
+      if (cached) {
+        const cachedData = JSON.parse(cached);
+        console.log('Using cached currencies from localStorage:', cachedData.data);
+        return cachedData.data;
+      }
     }
     throw e;
   }
@@ -547,10 +719,18 @@ async function getRate(from, to) {
   
   // Check if provider requires API key but none is available
   if (provider.requiresApiKey && !apiKey) {
-    const cached = localStorage.getItem(key);
-    if (cached) {
-      const record = JSON.parse(cached);
-      return { ...record, source: 'cache' };
+    try {
+      const cached = await persistentStorage.get('rates', key);
+      if (cached) {
+        return { ...cached, source: 'cache' };
+      }
+    } catch (error) {
+      // Fallback to localStorage
+      const cached = localStorage.getItem(key);
+      if (cached) {
+        const record = JSON.parse(cached);
+        return { ...record, source: 'cache' };
+      }
     }
     throw new Error('API key required for this provider');
   }
@@ -611,17 +791,33 @@ async function getRate(from, to) {
       throw new Error(`Rate not found for ${from} to ${to}`);
     }
     
-    const record = { rate, apiDate, fetchedAt: Date.now() };
-    localStorage.setItem(key, JSON.stringify(record));
+    const record = { key, rate, apiDate, fetchedAt: Date.now() };
+    
+    // Store in IndexedDB with localStorage fallback
+    try {
+      await persistentStorage.set('rates', key, record);
+    } catch (error) {
+      // Fallback to localStorage
+      localStorage.setItem(key, JSON.stringify(record));
+    }
+    
     return { ...record, source: 'network' };
     
   } catch (err) {
     console.error('Failed to get rate:', err.message);
     
-    const cached = localStorage.getItem(key);
-    if (cached) {
-      const record = JSON.parse(cached);
-      return { ...record, source: 'cache' };
+    // Try IndexedDB first, then localStorage fallback
+    try {
+      const cached = await persistentStorage.get('rates', key);
+      if (cached) {
+        return { ...cached, source: 'cache' };
+      }
+    } catch (error) {
+      const cached = localStorage.getItem(key);
+      if (cached) {
+        const record = JSON.parse(cached);
+        return { ...record, source: 'cache' };
+      }
     }
     throw err;
   }
@@ -710,18 +906,23 @@ function hideError() {
   errorArea.classList.add('d-none');
 }
 
-function updateProviderUI() {
+async function updateProviderUI() {
   const provider = getProviderConfig();
   
   if (provider.requiresApiKey) {
     apiKeySection.classList.remove('d-none');
     
     // Load existing API key
-    const savedKey = loadApiKey();
-    if (savedKey) {
-      apiKeyInput.value = '••••••••••••••••'; // Show masked
-      apiKey = savedKey;
-    } else {
+    try {
+      const savedKey = await loadApiKey();
+      if (savedKey) {
+        apiKeyInput.value = '••••••••••••••••'; // Show masked
+        apiKey = savedKey;
+      } else {
+        apiKeyInput.value = '';
+      }
+    } catch (error) {
+      console.warn('Failed to load API key during UI update:', error);
       apiKeyInput.value = '';
     }
   } else {
@@ -781,7 +982,7 @@ function handleApiKeyToggle() {
   }
 }
 
-function handleSaveSettings() {
+async function handleSaveSettings() {
   const provider = getProviderConfig();
   let success = true;
   
@@ -794,12 +995,18 @@ function handleSaveSettings() {
       return;
     }
     
-    if (saveApiKey(keyValue)) {
-      apiKeyInput.value = '••••••••••••••••'; // Mask the saved key
-      apiKeyInput.type = 'password';
-      toggleApiKeyButton.innerHTML = '<i class="fas fa-eye"></i>';
-    } else {
-      showError('Failed to save API key');
+    try {
+      const saved = await saveApiKey(keyValue);
+      if (saved) {
+        apiKeyInput.value = '••••••••••••••••'; // Mask the saved key
+        apiKeyInput.type = 'password';
+        toggleApiKeyButton.innerHTML = '<i class="fas fa-eye"></i>';
+      } else {
+        showError('Failed to save API key');
+        success = false;
+      }
+    } catch (error) {
+      showError('Failed to save API key: ' + error.message);
       success = false;
     }
   }
@@ -1157,8 +1364,79 @@ function showUpdateNotification() {
   }, 5000);
 }
 
+// Request persistent storage (helps with iOS Safari retention)
+async function requestPersistentStorage() {
+  if ('storage' in navigator && 'persist' in navigator.storage) {
+    try {
+      const isPersistent = await navigator.storage.persist();
+      console.log(`Storage persistence: ${isPersistent ? 'granted' : 'denied'}`);
+      
+      // Show storage info for debugging
+      if ('estimate' in navigator.storage) {
+        const estimate = await navigator.storage.estimate();
+        console.log('Storage estimate:', estimate);
+      }
+      
+      return isPersistent;
+    } catch (error) {
+      console.warn('Storage persistence request failed:', error);
+      return false;
+    }
+  }
+  return false;
+}
+
+// iOS-specific optimizations
+function optimizeForIOS() {
+  const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || 
+               (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  
+  if (isIOS) {
+    console.log('iOS detected, applying optimizations');
+    
+    // Add iOS-specific viewport meta tag to prevent zoom issues
+    const viewportMeta = document.querySelector('meta[name="viewport"]');
+    if (viewportMeta) {
+      viewportMeta.content = 'width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover';
+    }
+    
+    // Add iOS-specific CSS classes
+    document.body.classList.add('ios-device');
+    
+    // Prevent iOS Safari from clearing caches too aggressively
+    // by keeping a reference to important data in memory
+    window.addEventListener('pagehide', (event) => {
+      if (event.persisted) {
+        console.log('Page is being cached by iOS');
+      }
+    });
+    
+    window.addEventListener('pageshow', (event) => {
+      if (event.persisted) {
+        console.log('Page restored from iOS cache');
+        // Refresh data if it was cached for too long
+        const lastUpdate = currentRate?.fetchedAt;
+        if (lastUpdate && (Date.now() - lastUpdate > 30 * 60 * 1000)) { // 30 minutes
+          console.log('Refreshing stale data after iOS cache restore');
+          refreshRateAndConvert().catch(console.error);
+        }
+      }
+    });
+    
+    return true;
+  }
+  
+  return false;
+}
+
 // Initialization
 async function init() {
+  // Request persistent storage early
+  await requestPersistentStorage();
+  
+  // Apply iOS optimizations
+  optimizeForIOS();
+  
   // Set document language
   document.documentElement.lang = DEVICE_LOCALE.split('-')[0];
   
@@ -1169,7 +1447,12 @@ async function init() {
   }
   
   // Load API key for current provider immediately
-  apiKey = loadApiKey();
+  try {
+    apiKey = await loadApiKey();
+  } catch (error) {
+    console.warn('Failed to load API key:', error);
+    apiKey = null;
+  }
   
   // Load saved currency selection
   const savedCurrencies = loadCurrencySelection();
@@ -1217,7 +1500,7 @@ async function init() {
   // Set up provider UI - ensure proper initialization
   if (providerSelect) {
     providerSelect.value = currentProvider;
-    updateProviderUI();
+    await updateProviderUI();
     
     // Debug logging
     console.log('Provider initialization:', {
