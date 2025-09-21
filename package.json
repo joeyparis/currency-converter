@@ -1,8 +1,13 @@
 {
   "name": "currency-converter",
-  "version": "1.0.0",
+  "version": "1.4.0",
   "private": false,
-  "description": "Mobile-friendly SPA currency converter PWA with offline caching using plain HTML/CSS/JS.",
+  "description": "Mobile-friendly SPA currency converter PWA with offline caching, multi-provider support, and iOS persistence optimizations.",
+  "scripts": {
+    "build": "./update-build-version.sh",
+    "deploy": "./update-build-version.sh && git add . && git commit -m 'Update build version for deployment' && git push origin main",
+    "version": "echo 'Current build version:' && grep 'const BUILD_VERSION' script.js | cut -d\"'\" -f2"
+  },
   "author": "Joey Paris",
   "license": "MIT",
   "homepage": "https://joeyparis.github.io/currency-converter",
@@ -19,12 +24,17 @@
     "pwa",
     "offline",
     "mobile",
+    "ios",
     "exchange-rates",
+    "persistence",
+    "indexeddb",
+    "multi-provider",
     "javascript",
     "html",
     "css"
   ],
   "engines": {
     "node": ">=14.0.0"
-  }
+  },
+  "packageManager": "npm@11.5.2+sha512.aac1241cfc3f41dc38780d64295c6c6b917a41e24288b33519a7b11adfc5a54a5f881c642d7557215b6c70e01e55655ed7ba666300fd0238bc75fb17478afaf3"
 }

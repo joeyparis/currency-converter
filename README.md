@@ -81,6 +81,35 @@ A modern, offline-capable Progressive Web App (PWA) for currency conversion with
    - Offline after fetching rates (should work with cached rates)
    - Stale data banner (appears after 24+ hours)
 
+## 🏗️ Build Versioning
+
+### Version Display
+- **Build version** appears in the footer (e.g., "Build: 2025.09.21.1054 • SW: v4-stable")
+- **Automatic detection** of iOS devices with "(iOS)" indicator
+- **Service Worker version** included for debugging
+- **Real-time updates** when new versions are deployed
+
+### Build Scripts
+
+```bash
+# Update build version timestamp
+./update-build-version.sh
+
+# Or using npm scripts
+npm run build
+
+# Check current version
+npm run version
+
+# Update version and deploy
+npm run deploy
+```
+
+### Manual Version Update
+The build version follows `YYYY.MM.DD.HHMM` format and is stored in:
+- `script.js`: `const BUILD_VERSION = '2025.09.21.1054'`
+- `sw.js`: `const BUILD_VERSION = '2025.09.21.1054'`
+
 ## 🌐 Deployment
 
 ### GitHub Pages (Simple)

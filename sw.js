@@ -1,6 +1,7 @@
 // Currency Converter Service Worker
 // Stable caching strategy for better iOS persistence
 const VERSION = 'v4-stable'; // Stable version for better iOS persistence
+const BUILD_VERSION = '2025.09.21.1054'; // Keep in sync with script.js
 const APP_CACHE = `currency-converter-${VERSION}`;
 const CACHE_DURATION = 1000 * 60 * 60 * 24 * 7; // 7 days max cache for better persistence
 
@@ -67,7 +68,9 @@ self.addEventListener('activate', (event) => {
       clients.forEach(client => {
         client.postMessage({
           type: 'SW_UPDATED',
-          version: VERSION
+          version: VERSION,
+          buildVersion: BUILD_VERSION,
+          timestamp: Date.now()
         });
       });
       

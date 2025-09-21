@@ -2,6 +2,10 @@
 // Constants and Configuration
 const DEVICE_LOCALE = navigator.language || 'en-US';
 
+// Build version (updated on each build)
+const BUILD_VERSION = '2025.09.21.1054'; // YYYY.MM.DD.HHMM format
+const SW_VERSION = 'v4-stable';
+
 // Exchange Rate Providers Configuration
 const PROVIDERS = {
   frankfurter: {
@@ -949,6 +953,16 @@ function updateProviderAttribution() {
   }
 }
 
+function updateBuildVersion() {
+  const buildVersionEl = document.getElementById('build-version');
+  if (buildVersionEl) {
+    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || 
+                 (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+    const deviceType = isIOS ? ' (iOS)' : '';
+    buildVersionEl.textContent = `Build: ${BUILD_VERSION} • SW: ${SW_VERSION}${deviceType}`;
+  }
+}
+
 function handleProviderChange() {
   const newProvider = providerSelect.value;
   if (newProvider !== currentProvider) {
@@ -1322,8 +1336,13 @@ function registerServiceWorker() {
         // Listen for messages from service worker
         navigator.serviceWorker.addEventListener('message', (event) => {
           if (event.data.type === 'SW_UPDATED') {
-            console.log('🚀 SW activated with version:', event.data.version);
+            console.log('🚀 SW activated with version:', event.data.version, 'build:', event.data.buildVersion);
             hideError(); // Clear any old errors
+            
+            // Update build version display if versions differ
+            if (event.data.buildVersion && event.data.buildVersion !== BUILD_VERSION) {
+              console.log('Build version mismatch detected:', event.data.buildVersion, 'vs', BUILD_VERSION);
+            }
           }
         });
         
@@ -1436,6 +1455,9 @@ async function init() {
   
   // Apply iOS optimizations
   optimizeForIOS();
+  
+  // Update build version display
+  updateBuildVersion();
   
   // Set document language
   document.documentElement.lang = DEVICE_LOCALE.split('-')[0];
