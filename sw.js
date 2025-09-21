@@ -1,11 +1,23 @@
 // Currency Converter Service Worker
 // Stable caching strategy for better iOS persistence
 const VERSION = 'v4-stable'; // Stable version for better iOS persistence
-const BUILD_VERSION = '2025.09.21.1054'; // Keep in sync with script.js
+const BUILD_VERSION = '2025.09.21.1101'; // Keep in sync with script.js
 const APP_CACHE = `currency-converter-${VERSION}`;
 const CACHE_DURATION = 1000 * 60 * 60 * 24 * 7; // 7 days max cache for better persistence
 
 const APP_ASSETS = [
+  // Use absolute paths for better iOS PWA compatibility
+  '/currency-converter/',
+  '/currency-converter/index.html',
+  '/currency-converter/styles.css', 
+  '/currency-converter/script.js',
+  '/currency-converter/manifest.json',
+  '/currency-converter/assets/favicon.ico',
+  '/currency-converter/assets/icon-192.png',
+  '/currency-converter/assets/icon-512.png',
+  '/currency-converter/assets/icon-512-maskable.png',
+  '/currency-converter/assets/apple-touch-icon.png',
+  // Also cache relative paths for local development
   './',
   './index.html',
   './styles.css', 
@@ -20,23 +32,53 @@ const APP_ASSETS = [
   'https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css'
 ];
 
-// Install event - cache app shell and activate immediately
+// Install event - cache app shell with iOS PWA optimizations
 self.addEventListener('install', (event) => {
   console.log(`[SW] Installing ${VERSION}`);
   event.waitUntil((async () => {
     try {
       const cache = await caches.open(APP_CACHE);
       console.log(`[SW] Caching app shell for ${APP_CACHE}`);
-      await cache.addAll(APP_ASSETS);
-      console.log('[SW] ✅ App shell cached successfully');
       
-      // Skip waiting only for major updates, not every reload
-      // This helps with iOS cache persistence
-      if (self.location.hostname === 'localhost' || self.location.hostname === '127.0.0.1') {
-        self.skipWaiting(); // Development: always update
+      // Cache assets individually for better error handling
+      const cachePromises = [];
+      
+      for (const asset of APP_ASSETS) {
+        cachePromises.push(
+          fetch(asset)
+            .then(response => {
+              if (response.ok) {
+                console.log(`[SW] ✅ Cached: ${asset}`);
+                return cache.put(asset, response);
+              } else {
+                console.warn(`[SW] ⚠️ Failed to fetch: ${asset} (${response.status})`);
+                return null;
+              }
+            })
+            .catch(error => {
+              console.warn(`[SW] ⚠️ Cache error for ${asset}:`, error);
+              return null;
+            })
+        );
       }
+      
+      // Wait for critical assets, but don't fail if some assets don't load
+      await Promise.allSettled(cachePromises);
+      console.log('[SW] ✅ App shell caching completed (some assets may have failed)');
+      
+      // Always skip waiting for development
+      if (self.location.hostname === 'localhost' || self.location.hostname === '127.0.0.1') {
+        console.log('[SW] Development mode: skipping waiting');
+        self.skipWaiting();
+      } else {
+        // For production, skip waiting to ensure iOS PWA updates immediately
+        console.log('[SW] Production mode: skipping waiting for iOS PWA compatibility');
+        self.skipWaiting();
+      }
+      
     } catch (error) {
       console.error('[SW] ❌ Failed to cache app shell:', error);
+      // Don't throw - let the installation succeed even if caching fails
     }
   })());
 });
@@ -79,19 +121,25 @@ self.addEventListener('activate', (event) => {
         console.log('[SW] Background sync API available');
       }
       
+      // Debug cache contents after activation (for iOS troubleshooting)
+      setTimeout(debugCacheContents, 1000);
+      
     } catch (error) {
       console.error('[SW] ❌ Activation failed:', error);
     }
   })());
 });
 
-// Fetch event - Cache-first strategy for better iOS offline persistence
+// Fetch event - Cache-first strategy optimized for iOS PWA
 self.addEventListener('fetch', (event) => {
   const { request } = event;
   const url = new URL(request.url);
 
   // Only handle GET requests
   if (request.method !== 'GET') return;
+
+  // Skip non-HTTP requests (chrome-extension://, moz-extension://, etc.)
+  if (!url.protocol.startsWith('http')) return;
 
   // App shell: Cache-first strategy (better for iOS offline persistence)
   const isAppAsset = request.mode === 'navigate' || 
@@ -101,15 +149,48 @@ self.addEventListener('fetch', (event) => {
   if (isAppAsset) {
     event.respondWith((async () => {
       try {
-        // Try CACHE first for better offline persistence
+        console.log(`[SW] 🔎 Handling request: ${request.url} (mode: ${request.mode})`);
+        
         const cache = await caches.open(APP_CACHE);
-        const cached = await cache.match(request, { ignoreSearch: true });
+        
+        // Try multiple cache matching strategies for iOS PWA compatibility
+        let cached = null;
+        
+        // Strategy 1: Exact match
+        cached = await cache.match(request, { ignoreSearch: true });
+        
+        // Strategy 2: For navigation, try multiple fallbacks
+        if (!cached && request.mode === 'navigate') {
+          const fallbackPaths = [
+            './index.html',
+            '/currency-converter/index.html',
+            '/currency-converter/',
+            './'
+          ];
+          
+          for (const path of fallbackPaths) {
+            cached = await cache.match(path);
+            if (cached) {
+              console.log(`[SW] 🎯 Navigation fallback found: ${path}`);
+              break;
+            }
+          }
+        }
+        
+        // Strategy 3: For same-origin requests, try relative path matching
+        if (!cached && url.origin === self.location.origin) {
+          const relativePath = './' + url.pathname.split('/').pop();
+          cached = await cache.match(relativePath);
+          if (cached) {
+            console.log(`[SW] 🔄 Relative match found: ${relativePath}`);
+          }
+        }
         
         if (cached) {
-          console.log(`[SW] 💾 Serving cached (cache-first): ${request.url}`);
+          console.log(`[SW] 💾 Serving cached: ${request.url}`);
           
-          // For development: still try network in background for updates
-          if (self.location.hostname === 'localhost' || self.location.hostname === '127.0.0.1') {
+          // For production: still try network in background for critical assets
+          if (request.mode === 'navigate' || request.url.includes('.js') || request.url.includes('.css')) {
             fetch(request).then(networkResponse => {
               if (networkResponse.ok) {
                 console.log(`[SW] 🔄 Background update: ${request.url}`);
@@ -127,26 +208,68 @@ self.addEventListener('fetch', (event) => {
         
         if (networkResponse.ok) {
           console.log(`[SW] 💾 Caching fresh: ${request.url}`);
-          cache.put(request, networkResponse.clone());
+          // Cache with both the original request and a normalized version
+          await cache.put(request, networkResponse.clone());
+          
+          // For navigation requests, also cache as index.html for iOS PWA
+          if (request.mode === 'navigate') {
+            await cache.put('./index.html', networkResponse.clone());
+          }
+          
           return networkResponse;
         }
         
-        throw new Error('Network response not ok');
+        throw new Error(`Network response not ok: ${networkResponse.status}`);
         
       } catch (error) {
-        console.log(`[SW] 📶 Network failed for: ${request.url}`);
+        console.error(`[SW] ❌ Fetch failed for: ${request.url}`, error);
         
-        // Last resort: try to serve index.html for navigation
+        // Emergency fallback for navigation requests
         if (request.mode === 'navigate') {
+          console.log('[SW] 🊑 Emergency navigation fallback');
+          
           const cache = await caches.open(APP_CACHE);
-          const fallback = await cache.match('./index.html');
-          if (fallback) {
-            console.log('[SW] 🏠 Serving index.html fallback');
-            return fallback;
+          const emergencyPaths = [
+            './index.html',
+            '/currency-converter/index.html', 
+            '/currency-converter/',
+            './'
+          ];
+          
+          for (const path of emergencyPaths) {
+            const fallback = await cache.match(path);
+            if (fallback) {
+              console.log(`[SW] 🏠 Emergency fallback served: ${path}`);
+              return fallback;
+            }
           }
+          
+          // If all else fails, create a minimal HTML response
+          return new Response(`
+            <!DOCTYPE html>
+            <html>
+            <head>
+              <meta charset="utf-8">
+              <title>Currency Converter - Offline</title>
+              <meta name="viewport" content="width=device-width, initial-scale=1">
+            </head>
+            <body>
+              <div style="text-align: center; padding: 50px; font-family: Arial, sans-serif;">
+                <h1>Currency Converter</h1>
+                <p>Unable to load the app offline. Please check your connection and try again.</p>
+                <button onclick="window.location.reload()" style="padding: 10px 20px; font-size: 16px;">Retry</button>
+              </div>
+            </body>
+            </html>
+          `, {
+            status: 200,
+            headers: {
+              'Content-Type': 'text/html',
+              'Cache-Control': 'no-cache'
+            }
+          });
         }
         
-        console.error(`[SW] ❌ All fetch strategies failed for ${request.url}:`, error);
         throw error;
       }
     })());
@@ -209,4 +332,21 @@ self.addEventListener('unhandledrejection', (event) => {
   console.error('[SW] Unhandled promise rejection:', event.reason);
 });
 
+// Debug function to inspect cache contents
+async function debugCacheContents() {
+  try {
+    const cache = await caches.open(APP_CACHE);
+    const requests = await cache.keys();
+    console.log(`[SW] 🔍 Cache contains ${requests.length} items:`);
+    requests.forEach(req => console.log(`[SW]   - ${req.url}`));
+  } catch (error) {
+    console.error('[SW] Failed to inspect cache:', error);
+  }
+}
+
+// Expose debug function to window for testing
+self.debugCache = debugCacheContents;
+
 console.log('[SW] Service worker script loaded');
+console.log('[SW] Debug cache contents with: self.debugCache()');
+

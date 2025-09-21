@@ -334,6 +334,26 @@ footer {
   }
 }
 
+/* iOS PWA-specific optimizations */
+.ios-pwa {
+  /* Additional PWA-specific optimizations */
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+.ios-pwa input,
+.ios-pwa select,
+.ios-pwa button {
+  /* Re-enable selection for interactive elements */
+  -webkit-user-select: auto;
+  user-select: auto;
+}
+
+.ios-pwa .container {
+  /* Ensure content stays in memory */
+  will-change: contents;
+}
+
 /* iOS viewport fixes */
 @media screen and (max-width: 768px) {
   .ios-device .container {
@@ -344,5 +364,17 @@ footer {
   .ios-device input[type="text"] {
     /* Prevent iOS zoom on input focus */
     font-size: 16px;
+  }
+  
+  /* PWA-specific styles for iOS */
+  .ios-pwa {
+    /* Add safe area padding for PWA */
+    padding-top: env(safe-area-inset-top);
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+  
+  .ios-pwa .floating-settings-btn {
+    /* Adjust floating button for safe area */
+    bottom: calc(20px + env(safe-area-inset-bottom));
   }
 }

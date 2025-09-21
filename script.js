@@ -3,7 +3,7 @@
 const DEVICE_LOCALE = navigator.language || 'en-US';
 
 // Build version (updated on each build)
-const BUILD_VERSION = '2025.09.21.1054'; // YYYY.MM.DD.HHMM format
+const BUILD_VERSION = '2025.09.21.1101'; // YYYY.MM.DD.HHMM format
 const SW_VERSION = 'v4-stable';
 
 // Exchange Rate Providers Configuration
@@ -1410,8 +1410,11 @@ function optimizeForIOS() {
   const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || 
                (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
   
+  const isPWA = window.matchMedia('(display-mode: standalone)').matches ||
+                window.navigator.standalone === true;
+  
   if (isIOS) {
-    console.log('iOS detected, applying optimizations');
+    console.log('iOS detected, applying optimizations', { isPWA });
     
     // Add iOS-specific viewport meta tag to prevent zoom issues
     const viewportMeta = document.querySelector('meta[name="viewport"]');
@@ -1421,16 +1424,37 @@ function optimizeForIOS() {
     
     // Add iOS-specific CSS classes
     document.body.classList.add('ios-device');
+    if (isPWA) {
+      document.body.classList.add('ios-pwa');
+    }
+    
+    // iOS PWA cache warming
+    if (isPWA && 'serviceWorker' in navigator && 'caches' in window) {
+      warmIOSPWACache().catch(console.error);
+    }
     
     // Prevent iOS Safari from clearing caches too aggressively
     // by keeping a reference to important data in memory
     window.addEventListener('pagehide', (event) => {
+      console.log('iOS pagehide event', { persisted: event.persisted, isPWA });
+      
       if (event.persisted) {
         console.log('Page is being cached by iOS');
+      } else if (isPWA) {
+        console.log('iOS PWA being terminated - attempting to preserve state');
+        // Force save current state
+        try {
+          saveCurrencySelection();
+          saveAmountValues();
+        } catch (error) {
+          console.warn('Failed to save state on pagehide:', error);
+        }
       }
     });
     
     window.addEventListener('pageshow', (event) => {
+      console.log('iOS pageshow event', { persisted: event.persisted, isPWA });
+      
       if (event.persisted) {
         console.log('Page restored from iOS cache');
         // Refresh data if it was cached for too long
@@ -1439,6 +1463,24 @@ function optimizeForIOS() {
           console.log('Refreshing stale data after iOS cache restore');
           refreshRateAndConvert().catch(console.error);
         }
+      } else if (isPWA) {
+        console.log('iOS PWA fresh start - checking cache integrity');
+        checkIOSPWACacheIntegrity().catch(console.error);
+      }
+    });
+    
+    // iOS PWA visibility change handling
+    document.addEventListener('visibilitychange', () => {
+      if (isPWA) {
+        console.log('iOS PWA visibility change:', document.visibilityState);
+        if (document.visibilityState === 'visible') {
+          // Check if we need to refresh data
+          const lastUpdate = currentRate?.fetchedAt;
+          if (lastUpdate && (Date.now() - lastUpdate > 10 * 60 * 1000)) { // 10 minutes
+            console.log('Refreshing data on iOS PWA visibility change');
+            refreshRateAndConvert().catch(console.error);
+          }
+        }
       }
     });
     
@@ -1446,6 +1488,90 @@ function optimizeForIOS() {
   }
   
   return false;
+}
+
+// Warm up iOS PWA cache with critical assets
+async function warmIOSPWACache() {
+  try {
+    console.log('Warming iOS PWA cache...');
+    
+    const criticalAssets = [
+      './index.html',
+      './script.js',
+      './styles.css',
+      './manifest.json'
+    ];
+    
+    // Pre-cache critical assets
+    const cache = await caches.open('currency-converter-v4-stable');
+    const cachePromises = criticalAssets.map(async (asset) => {
+      try {
+        const cached = await cache.match(asset);
+        if (!cached) {
+          console.log(`Warming cache for: ${asset}`);
+          const response = await fetch(asset);
+          if (response.ok) {
+            await cache.put(asset, response);
+          }
+        }
+      } catch (error) {
+        console.warn(`Failed to warm cache for ${asset}:`, error);
+      }
+    });
+    
+    await Promise.allSettled(cachePromises);
+    console.log('iOS PWA cache warming completed');
+    
+  } catch (error) {
+    console.warn('iOS PWA cache warming failed:', error);
+  }
+}
+
+// Check iOS PWA cache integrity
+async function checkIOSPWACacheIntegrity() {
+  try {
+    console.log('Checking iOS PWA cache integrity...');
+    
+    const cache = await caches.open('currency-converter-v4-stable');
+    const cachedRequests = await cache.keys();
+    
+    console.log(`Cache contains ${cachedRequests.length} items`);
+    
+    if (cachedRequests.length === 0) {
+      console.warn('iOS PWA cache is empty - triggering cache warm-up');
+      await warmIOSPWACache();
+    }
+    
+    // Check for critical assets
+    const criticalAssets = ['./index.html', './script.js', './styles.css'];
+    const missingAssets = [];
+    
+    for (const asset of criticalAssets) {
+      const cached = await cache.match(asset);
+      if (!cached) {
+        missingAssets.push(asset);
+      }
+    }
+    
+    if (missingAssets.length > 0) {
+      console.warn('Missing critical assets from cache:', missingAssets);
+      // Try to re-cache missing assets
+      for (const asset of missingAssets) {
+        try {
+          const response = await fetch(asset);
+          if (response.ok) {
+            await cache.put(asset, response);
+            console.log(`Re-cached missing asset: ${asset}`);
+          }
+        } catch (error) {
+          console.error(`Failed to re-cache ${asset}:`, error);
+        }
+      }
+    }
+    
+  } catch (error) {
+    console.error('Failed to check iOS PWA cache integrity:', error);
+  }
 }
 
 // Initialization
